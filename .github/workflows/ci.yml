@@ -1,0 +1,46 @@
+
+name: CI - Build & Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/strapi-app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to DockerHub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Set image tag using short SHA
+        id: vars
+        run: echo "tag=latest-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME:${{ steps.vars.outputs.tag }} .
+
+      - name: Push Docker image
+        run: docker push $IMAGE_NAME:${{ steps.vars.outputs.tag }}
+
+      - name: Export Docker image tag
+        run: echo "IMAGE_TAG=${{ steps.vars.outputs.tag }}" >> $GITHUB_ENV
+
+      - name: Upload tag as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image-tag
+          path: |
+            ${{ github.workspace }}/.github/docker-image-tag.txt
+        env:
+          IMAGE_TAG_FILE: ${{ github.workspace }}/.github/docker-image-tag.txt
+        run: |
+          echo "${{ steps.vars.outputs.tag }}" > $IMAGE_TAG_FILE
